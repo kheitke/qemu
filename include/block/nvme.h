@@ -475,6 +475,24 @@ typedef struct NvmeFwSlotInfoLog {
     uint8_t     reserved2[448];
 } NvmeFwSlotInfoLog;
 
+typedef struct NvmeGetLogPage {
+    uint8_t opcode;
+    uint8_t flags;
+    uint16_t cid;
+    uint32_t nsid;
+    uint64_t rsvd1[2];
+    uint64_t prp1;
+    uint64_t prp2;
+    uint8_t  lid;
+    uint8_t  rsvd10;
+    uint16_t numdl;
+    uint16_t numdu;
+    uint16_t rsvd11;
+    uint32_t lpol;
+    uint32_t lpou;
+    uint32_t rsvd14[2];
+} NvmeGetLogPage;
+
 typedef struct NvmeErrorLog {
     uint64_t    error_count;
     uint16_t    sqid;
@@ -486,6 +504,12 @@ typedef struct NvmeErrorLog {
     uint8_t     vs;
     uint8_t     resv[35];
 } NvmeErrorLog;
+
+typedef struct NvmeEffectsLog {
+    uint32_t    acs[256];               /* Admin Command Supported */
+    uint32_t    iocs[256];              /* I/O Command Supported   */
+    uint8_t     resv[2048];
+} NvmeEffectsLog;
 
 typedef struct NvmeSmartLog {
     uint8_t     critical_warning;
@@ -516,9 +540,20 @@ enum NvmeSmartWarn {
 };
 
 enum LogIdentifier {
-    NVME_LOG_ERROR_INFO     = 0x01,
-    NVME_LOG_SMART_INFO     = 0x02,
-    NVME_LOG_FW_SLOT_INFO   = 0x03,
+    NVME_LOG_ERROR_INFO       = 0x01,
+    NVME_LOG_SMART_INFO       = 0x02,
+    NVME_LOG_FW_SLOT_INFO     = 0x03,
+    NVME_LOG_CHANGED_NS       = 0x04,
+    NVME_LOG_CMD_EFFECTS      = 0x05,
+    NVME_LOG_DEVICE_SELF_TEST = 0x06,
+    NVME_LOG_TELEMETRY_HOST   = 0x07,
+    NVME_LOG_TELEMETRY_CTRL   = 0x08,
+    NVME_LOG_ENDURANCE_GROUP  = 0x09,
+    NVME_LOG_ANA              = 0x0c,
+    NVME_LOG_DISC             = 0x70,
+    NVME_LOG_RESERVATION      = 0x80,
+    NVME_LOG_SANITIZE         = 0x81,
+    NVME_LOG_ZONE_INFO        = 0x82,
 };
 
 typedef struct NvmePSD {

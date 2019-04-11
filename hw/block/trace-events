@@ -85,6 +85,7 @@ nvme_err_invalid_create_cq_qflags(uint16_t qflags) "failed creating completion q
 nvme_err_invalid_identify_cns(uint16_t cns) "identify, invalid cns=0x%"PRIx16""
 nvme_err_invalid_getfeat(int dw10) "invalid get features, dw10=0x%"PRIx32""
 nvme_err_invalid_setfeat(uint32_t dw10) "invalid set features, dw10=0x%"PRIx32""
+nvme_err_invalid_getlogpage(int dw10) "invalid get log page, dw10=0x%"PRIx32""
 nvme_err_startfail_cq(void) "nvme_start_ctrl failed because there are non-admin completion queues"
 nvme_err_startfail_sq(void) "nvme_start_ctrl failed because there are non-admin submission queues"
 nvme_err_startfail_nbarasq(void) "nvme_start_ctrl failed because the admin submission queue address is null"

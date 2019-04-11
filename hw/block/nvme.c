@@ -719,6 +719,101 @@ static uint16_t nvme_get_feature(NvmeCtrl *n, NvmeCmd *cmd, NvmeRequest *req)
     return NVME_SUCCESS;
 }
 
+static uint16_t nvme_get_effects_log(NvmeCtrl *n, NvmeCmd *cmd)
+{
+    int i;
+    uint64_t prp1 = le64_to_cpu(cmd->prp1);
+    uint64_t prp2 = le64_to_cpu(cmd->prp2);
+
+    union nvme_cse {
+        struct {
+            uint32_t csupp:1;
+            uint32_t lbcc:1;
+            uint32_t ncc:1;
+            uint32_t nic:1;
+            uint32_t ccc:1;
+            uint32_t reserved05:11;
+            uint32_t cse:3;
+            uint32_t reserved19:13;
+        };
+        uint32_t all;
+    };
+
+    /* Admin Commands Supported */
+    static const union nvme_cse acs[] = {
+        [NVME_ADM_CMD_IDENTIFY]     = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_ADM_CMD_DELETE_SQ]    = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_ADM_CMD_CREATE_SQ]    = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_ADM_CMD_DELETE_CQ]    = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_ADM_CMD_CREATE_CQ]    = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_ADM_CMD_SET_FEATURES] = { .csupp=1, .lbcc=0, .ncc=1, .nic=1, .ccc=0, .cse=2 },
+        [NVME_ADM_CMD_GET_FEATURES] = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_ADM_CMD_GET_LOG_PAGE] = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+    };
+
+    /* I/O Commands Supported */
+    static const union nvme_cse iocs[] = {
+        [NVME_CMD_READ]             = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_CMD_WRITE]            = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_CMD_FLUSH]            = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+        [NVME_CMD_WRITE_ZEROS]      = { .csupp=1, .lbcc=0, .ncc=0, .nic=0, .ccc=0, .cse=0 },
+    };
+
+    static NvmeEffectsLog effects_log;
+
+    memset(&effects_log, 0x00, sizeof(effects_log));
+
+    QEMU_BUILD_BUG_ON(sizeof(acs) > sizeof(effects_log.acs));
+    QEMU_BUILD_BUG_ON(sizeof(iocs) > sizeof(effects_log.iocs));
+
+    for (i = 0; i < ARRAY_SIZE(acs); i++) {
+        effects_log.acs[i] = acs[i].all;
+    }
+
+    for (i = 0; i < ARRAY_SIZE(iocs); i++) {
+        effects_log.iocs[i] = iocs[i].all;
+    }
+
+    if (nvme_dma_read_prp(n, (uint8_t *)&effects_log,
+                          sizeof(effects_log), prp1, prp2)) {
+        return NVME_INVALID_FIELD | NVME_DNR;
+    }
+
+    return NVME_SUCCESS;
+}
+
+static uint16_t nvme_get_log(NvmeCtrl *n, NvmeCmd *cmd, NvmeRequest *req)
+{
+    uint16_t result = 0;
+    uint32_t dw10 = le32_to_cpu(cmd->cdw10);
+    uint8_t lid = dw10 & 0xff;
+
+    switch (lid) {
+    case NVME_LOG_CMD_EFFECTS:
+        return nvme_get_effects_log(n, cmd);
+        break;
+
+    case NVME_LOG_ERROR_INFO:
+    case NVME_LOG_SMART_INFO:
+    case NVME_LOG_FW_SLOT_INFO:
+    case NVME_LOG_CHANGED_NS:
+    case NVME_LOG_DEVICE_SELF_TEST:
+    case NVME_LOG_TELEMETRY_HOST:
+    case NVME_LOG_TELEMETRY_CTRL:
+    case NVME_LOG_ENDURANCE_GROUP:
+    case NVME_LOG_ANA:
+    case NVME_LOG_DISC:
+    case NVME_LOG_RESERVATION:
+    case NVME_LOG_SANITIZE:
+    default:
+        trace_nvme_err_invalid_getlogpage(dw10);
+        return NVME_INVALID_LOG_ID | NVME_DNR;
+    }
+
+    req->cqe.result = result;
+    return NVME_SUCCESS;
+}
+
 static uint16_t nvme_set_feature(NvmeCtrl *n, NvmeCmd *cmd, NvmeRequest *req)
 {
     uint32_t dw10 = le32_to_cpu(cmd->cdw10);
@@ -759,6 +854,8 @@ static uint16_t nvme_admin_cmd(NvmeCtrl *n, NvmeCmd *cmd, NvmeRequest *req)
         return nvme_set_feature(n, cmd, req);
     case NVME_ADM_CMD_GET_FEATURES:
         return nvme_get_feature(n, cmd, req);
+    case NVME_ADM_CMD_GET_LOG_PAGE:
+        return nvme_get_log(n, cmd, req);
     default:
         trace_nvme_err_invalid_admin_opc(cmd->opcode);
         return NVME_INVALID_OPCODE | NVME_DNR;
